@@ -148,7 +148,22 @@ If multiple suites need to run, run them sequentially (each needs a test lane). 
 
 Review the diff for structural issues that tests don't catch.
 
-1. Read `.claude/skills/review/checklist.md`. If the file cannot be read, **STOP** and report the error.
+1. Resolve the review skill directory, preferring Codex installs and falling back to legacy Claude installs:
+
+```bash
+_CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+_REVIEW_DIR=""
+[ -d ".codex/skills/review" ] && _REVIEW_DIR=".codex/skills/review"
+[ -z "$_REVIEW_DIR" ] && [ -d ".codex/skills/gstack/review" ] && _REVIEW_DIR=".codex/skills/gstack/review"
+[ -z "$_REVIEW_DIR" ] && [ -d "$_CODEX_HOME/skills/review" ] && _REVIEW_DIR="$_CODEX_HOME/skills/review"
+[ -z "$_REVIEW_DIR" ] && [ -d "$_CODEX_HOME/skills/gstack/review" ] && _REVIEW_DIR="$_CODEX_HOME/skills/gstack/review"
+[ -z "$_REVIEW_DIR" ] && [ -d ".claude/skills/review" ] && _REVIEW_DIR=".claude/skills/review"
+[ -z "$_REVIEW_DIR" ] && [ -d ".claude/skills/gstack/review" ] && _REVIEW_DIR=".claude/skills/gstack/review"
+[ -z "$_REVIEW_DIR" ] && [ -d "$HOME/.claude/skills/review" ] && _REVIEW_DIR="$HOME/.claude/skills/review"
+[ -z "$_REVIEW_DIR" ] && [ -d "$HOME/.claude/skills/gstack/review" ] && _REVIEW_DIR="$HOME/.claude/skills/gstack/review"
+```
+
+Read ``$_REVIEW_DIR/checklist.md``. If the file cannot be read, **STOP** and report the error.
 
 2. Run `git diff origin/main` to get the full diff (scoped to feature changes against the freshly-fetched remote main).
 
@@ -176,7 +191,7 @@ Save the review output — it goes into the PR body in Step 8.
 
 ## Step 3.75: Address Greptile review comments (if PR exists)
 
-Read `.claude/skills/review/greptile-triage.md` and follow the fetch, filter, and classify steps.
+Read ``$_REVIEW_DIR/greptile-triage.md`` and follow the fetch, filter, and classify steps.
 
 **If no PR exists, `gh` fails, API returns an error, or there are zero Greptile comments:** Skip this step silently. Continue to Step 4.
 

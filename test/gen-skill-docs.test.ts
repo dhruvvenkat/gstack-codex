@@ -130,6 +130,41 @@ describe('gen-skill-docs', () => {
     expect(browseTmpl).toContain('{{COMMAND_REFERENCE}}');
     expect(browseTmpl).toContain('{{SNAPSHOT_FLAGS}}');
   });
+
+  test('review skill resolves supporting docs via Codex-aware review dir lookup', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('_CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"');
+    expect(content).toContain('[ -d ".codex/skills/review" ] && _REVIEW_DIR=".codex/skills/review"');
+    expect(content).toContain('[ -d "$_CODEX_HOME/skills/review" ] && _REVIEW_DIR="$_CODEX_HOME/skills/review"');
+    expect(content).toContain('Read ``$_REVIEW_DIR/checklist.md``.');
+    expect(content).toContain('Read ``$_REVIEW_DIR/greptile-triage.md``');
+  });
+
+  test('ship skill resolves review supporting docs via Codex-aware review dir lookup', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('_CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"');
+    expect(content).toContain('[ -d ".codex/skills/review" ] && _REVIEW_DIR=".codex/skills/review"');
+    expect(content).toContain('[ -d "$_CODEX_HOME/skills/review" ] && _REVIEW_DIR="$_CODEX_HOME/skills/review"');
+    expect(content).toContain('Read ``$_REVIEW_DIR/checklist.md``.');
+    expect(content).toContain('Read ``$_REVIEW_DIR/greptile-triage.md``');
+  });
+
+  test('critical skills no longer hardcode legacy Claude review doc paths', () => {
+    const reviewContent = fs.readFileSync(path.join(ROOT, 'review', 'SKILL.md'), 'utf-8');
+    const shipContent = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+
+    expect(reviewContent).not.toContain('Read `.claude/skills/review/checklist.md`');
+    expect(reviewContent).not.toContain('Read `.claude/skills/review/greptile-triage.md`');
+    expect(shipContent).not.toContain('Read `.claude/skills/review/checklist.md`');
+    expect(shipContent).not.toContain('Read `.claude/skills/review/greptile-triage.md`');
+  });
+
+  test('greptile triage helper prefers Codex browse helper before legacy Claude fallback', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'review', 'greptile-triage.md'), 'utf-8');
+    expect(content).toContain('CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"');
+    expect(content).toContain('"$CODEX_HOME/skills/gstack/browse/bin/remote-slug"');
+    expect(content).toContain('~/.claude/skills/gstack/browse/bin/remote-slug');
+  });
 });
 
 /**

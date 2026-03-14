@@ -32,7 +32,22 @@ You are running the `/review` workflow. Analyze the current branch's diff agains
 
 ## Step 2: Read the checklist
 
-Read `.claude/skills/review/checklist.md`.
+Resolve the review skill directory, preferring Codex installs and falling back to legacy Claude installs:
+
+```bash
+_CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+_REVIEW_DIR=""
+[ -d ".codex/skills/review" ] && _REVIEW_DIR=".codex/skills/review"
+[ -z "$_REVIEW_DIR" ] && [ -d ".codex/skills/gstack/review" ] && _REVIEW_DIR=".codex/skills/gstack/review"
+[ -z "$_REVIEW_DIR" ] && [ -d "$_CODEX_HOME/skills/review" ] && _REVIEW_DIR="$_CODEX_HOME/skills/review"
+[ -z "$_REVIEW_DIR" ] && [ -d "$_CODEX_HOME/skills/gstack/review" ] && _REVIEW_DIR="$_CODEX_HOME/skills/gstack/review"
+[ -z "$_REVIEW_DIR" ] && [ -d ".claude/skills/review" ] && _REVIEW_DIR=".claude/skills/review"
+[ -z "$_REVIEW_DIR" ] && [ -d ".claude/skills/gstack/review" ] && _REVIEW_DIR=".claude/skills/gstack/review"
+[ -z "$_REVIEW_DIR" ] && [ -d "$HOME/.claude/skills/review" ] && _REVIEW_DIR="$HOME/.claude/skills/review"
+[ -z "$_REVIEW_DIR" ] && [ -d "$HOME/.claude/skills/gstack/review" ] && _REVIEW_DIR="$HOME/.claude/skills/gstack/review"
+```
+
+Read ``$_REVIEW_DIR/checklist.md``.
 
 **If the file cannot be read, STOP and report the error.** Do not proceed without the checklist.
 
@@ -40,7 +55,7 @@ Read `.claude/skills/review/checklist.md`.
 
 ## Step 2.5: Check for Greptile review comments
 
-Read `.claude/skills/review/greptile-triage.md` and follow the fetch, filter, and classify steps.
+Read ``$_REVIEW_DIR/greptile-triage.md`` and follow the fetch, filter, and classify steps.
 
 **If no PR exists, `gh` fails, API returns an error, or there are zero Greptile comments:** Skip this step silently. Greptile integration is additive — the review works without it.
 
