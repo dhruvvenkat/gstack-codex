@@ -29,17 +29,30 @@ Use AskUserQuestion:
 ### Step 2: Detect install type
 
 ```bash
-if [ -d "$HOME/.claude/skills/gstack/.git" ]; then
+CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+if [ -d "$CODEX_HOME/skills/gstack/.git" ]; then
   INSTALL_TYPE="global-git"
+  INSTALL_DIR="$CODEX_HOME/skills/gstack"
+elif [ -d ".codex/skills/gstack/.git" ]; then
+  INSTALL_TYPE="local-git"
+  INSTALL_DIR=".codex/skills/gstack"
+elif [ -d ".codex/skills/gstack" ]; then
+  INSTALL_TYPE="vendored"
+  INSTALL_DIR=".codex/skills/gstack"
+elif [ -d "$CODEX_HOME/skills/gstack" ]; then
+  INSTALL_TYPE="vendored-global"
+  INSTALL_DIR="$CODEX_HOME/skills/gstack"
+elif [ -d "$HOME/.claude/skills/gstack/.git" ]; then
+  INSTALL_TYPE="legacy-global-git"
   INSTALL_DIR="$HOME/.claude/skills/gstack"
 elif [ -d ".claude/skills/gstack/.git" ]; then
-  INSTALL_TYPE="local-git"
+  INSTALL_TYPE="legacy-local-git"
   INSTALL_DIR=".claude/skills/gstack"
 elif [ -d ".claude/skills/gstack" ]; then
-  INSTALL_TYPE="vendored"
+  INSTALL_TYPE="legacy-vendored"
   INSTALL_DIR=".claude/skills/gstack"
 elif [ -d "$HOME/.claude/skills/gstack" ]; then
-  INSTALL_TYPE="vendored-global"
+  INSTALL_TYPE="legacy-vendored-global"
   INSTALL_DIR="$HOME/.claude/skills/gstack"
 else
   echo "ERROR: gstack not found"
@@ -56,7 +69,7 @@ OLD_VERSION=$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || echo "unknown")
 
 ### Step 4: Upgrade
 
-**For git installs** (global-git, local-git):
+**For git installs** (global-git, local-git, legacy-global-git, legacy-local-git):
 ```bash
 cd "$INSTALL_DIR"
 STASH_OUTPUT=$(git stash 2>&1)
@@ -66,7 +79,7 @@ git reset --hard origin/main
 ```
 If `$STASH_OUTPUT` contains "Saved working directory", warn the user: "Note: local changes were stashed. Run `git stash pop` in the skill directory to restore them."
 
-**For vendored installs** (vendored, vendored-global):
+**For vendored installs** (vendored, vendored-global, legacy-vendored, legacy-vendored-global):
 ```bash
 PARENT=$(dirname "$INSTALL_DIR")
 TMP_DIR=$(mktemp -d)

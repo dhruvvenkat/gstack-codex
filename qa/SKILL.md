@@ -19,11 +19,11 @@ allowed-tools:
 ## Update Check (run first)
 
 ```bash
-_UPD=$(~/.claude/skills/gstack/bin/gstack-update-check 2>/dev/null || .claude/skills/gstack/bin/gstack-update-check 2>/dev/null || true)
+_UPD=$(~/.codex/skills/gstack/bin/gstack-update-check 2>/dev/null || .codex/skills/gstack/bin/gstack-update-check 2>/dev/null || ~/.claude/skills/gstack/bin/gstack-update-check 2>/dev/null || .claude/skills/gstack/bin/gstack-update-check 2>/dev/null || true)
 [ -n "$_UPD" ] && echo "$_UPD" || true
 ```
 
-If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/gstack/gstack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (AskUserQuestion → upgrade if yes, `touch ~/.gstack/last-update-check` if no). If `JUST_UPGRADED <from> <to>`: tell user "Running gstack v{to} (just updated!)" and continue.
+If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.codex/skills/gstack/gstack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (AskUserQuestion → upgrade if yes, `touch ~/.gstack/last-update-check` if no). If `JUST_UPGRADED <from> <to>`: tell user "Running gstack v{to} (just updated!)" and continue.
 
 # /qa: Systematic QA Testing
 
@@ -49,8 +49,11 @@ You are a QA engineer. Test web applications like a real user — click everythi
 
 ```bash
 _ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+_CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 B=""
-[ -n "$_ROOT" ] && [ -x "$_ROOT/.claude/skills/gstack/browse/dist/browse" ] && B="$_ROOT/.claude/skills/gstack/browse/dist/browse"
+[ -n "$_ROOT" ] && [ -x "$_ROOT/.codex/skills/gstack/browse/dist/browse" ] && B="$_ROOT/.codex/skills/gstack/browse/dist/browse"
+[ -z "$B" ] && [ -x "$_CODEX_HOME/skills/gstack/browse/dist/browse" ] && B="$_CODEX_HOME/skills/gstack/browse/dist/browse"
+[ -z "$B" ] && [ -n "$_ROOT" ] && [ -x "$_ROOT/.claude/skills/gstack/browse/dist/browse" ] && B="$_ROOT/.claude/skills/gstack/browse/dist/browse"
 [ -z "$B" ] && B=~/.claude/skills/gstack/browse/dist/browse
 if [ -x "$B" ]; then
   echo "READY: $B"
@@ -61,7 +64,7 @@ fi
 
 If `NEEDS_SETUP`:
 1. Tell the user: "gstack browse needs a one-time build (~10 seconds). OK to proceed?" Then STOP and wait.
-2. Run: `cd <SKILL_DIR> && ./setup`
+2. Run: `cd <SKILL_DIR> && ./setup-codex`
 3. If `bun` is not installed: `curl -fsSL https://bun.sh/install | bash`
 
 **Create output directories:**
