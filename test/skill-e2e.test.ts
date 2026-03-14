@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
-import { runSkillTest } from './helpers/session-runner';
+import { resolveCodexExecutable, runSkillTest } from './helpers/session-runner';
 import type { SkillTestResult } from './helpers/session-runner';
 import { outcomeJudge } from './helpers/llm-judge';
 import { EvalCollector } from './helpers/eval-store';
@@ -12,7 +12,7 @@ import * as os from 'os';
 
 const ROOT = path.resolve(import.meta.dir, '..');
 
-// Skip unless EVALS=1. Session runner strips CLAUDE* env vars to avoid nested session issues.
+// Skip unless EVALS=1.
 const evalsEnabled = !!process.env.EVALS;
 const describeE2E = evalsEnabled ? describe : describe.skip;
 
@@ -47,7 +47,19 @@ function recordE2E(name: string, suite: string, result: SkillTestResult, extra?:
 
 let testServer: ReturnType<typeof startTestServer>;
 let tmpDir: string;
-const browseBin = path.resolve(ROOT, 'browse', 'dist', 'browse');
+const browseBin = (() => {
+  const candidates = process.platform === 'win32'
+    ? [
+        path.resolve(ROOT, 'browse', 'dist', 'browse.exe'),
+        path.resolve(ROOT, 'browse', 'dist', 'browse'),
+      ]
+    : [
+        path.resolve(ROOT, 'browse', 'dist', 'browse'),
+        path.resolve(ROOT, 'browse', 'dist', 'browse.exe'),
+      ];
+
+  return candidates.find(candidate => fs.existsSync(candidate)) || candidates[0];
+})();
 
 /**
  * Copy a directory tree recursively (files only, follows structure).
@@ -117,14 +129,29 @@ function dumpOutcomeDiagnostic(dir: string, label: string, report: string, judge
   } catch { /* non-fatal */ }
 }
 
-// Fail fast if Anthropic API is unreachable — don't burn through 13 tests getting ConnectionRefused
+// Fail fast if Codex exec cannot reach the model backend.
 if (evalsEnabled) {
-  const check = spawnSync('sh', ['-c', 'echo "ping" | claude -p --max-turns 1 --output-format stream-json --verbose --dangerously-skip-permissions'], {
-    stdio: 'pipe', timeout: 30_000,
+  const check = spawnSync(resolveCodexExecutable(), [
+    'exec',
+    '--ephemeral',
+    '--skip-git-repo-check',
+    '--dangerously-bypass-approvals-and-sandbox',
+    '--json',
+    '-',
+  ], {
+    input: 'Say exactly ping.',
+    encoding: 'utf-8',
+    stdio: 'pipe',
+    timeout: 30_000,
   });
   const output = check.stdout?.toString() || '';
-  if (output.includes('ConnectionRefused') || output.includes('Unable to connect')) {
-    throw new Error('Anthropic API unreachable — aborting E2E suite. Fix connectivity and retry.');
+  const stderr = check.stderr?.toString() || '';
+  if (
+    check.status !== 0
+    || output.includes('"type":"error"')
+    || /Unable to connect|ConnectionRefused|authentication|unauthorized/i.test(output + '\n' + stderr)
+  ) {
+    throw new Error(`Codex exec unavailable — aborting E2E suite.\nstdout:\n${output}\nstderr:\n${stderr}`);
   }
 }
 
