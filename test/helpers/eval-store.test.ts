@@ -114,7 +114,8 @@ describe('EvalCollector', () => {
 
     expect(filepath1).toBeTruthy();
     expect(filepath2).toBe(''); // second call returns empty
-    expect(fs.readdirSync(tmpDir).filter(f => f.endsWith('.json'))).toHaveLength(1);
+    const finalFiles = fs.readdirSync(tmpDir).filter(f => f.endsWith('.json') && !f.startsWith('_partial-'));
+    expect(finalFiles).toHaveLength(1);
   });
 
   test('empty collector writes valid file', async () => {
