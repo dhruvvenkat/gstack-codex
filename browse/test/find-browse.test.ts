@@ -3,22 +3,70 @@
  */
 
 import { describe, test, expect } from 'bun:test';
-import { locateBinary } from '../src/find-browse';
-import { existsSync } from 'fs';
+import { getBinaryCandidates, locateBinary } from '../src/find-browse';
 
 describe('locateBinary', () => {
-  test('returns null when no binary exists at known paths', () => {
-    // This test depends on the test environment — if a real binary exists at
-    // ~/.claude/skills/gstack/browse/dist/browse, it will find it.
-    // We mainly test that the function doesn't throw.
-    const result = locateBinary();
-    expect(result === null || typeof result === 'string').toBe(true);
+  test('checks Codex install locations before legacy Claude fallbacks', () => {
+    const candidates = getBinaryCandidates({
+      env: { CODEX_HOME: '/codex-home' },
+      gitRoot: '/repo',
+      homeDir: '/home/test',
+    });
+
+    expect(candidates).toEqual([
+      '/repo/.codex/skills/gstack/browse/dist/browse',
+      '/codex-home/skills/gstack/browse/dist/browse',
+      '/repo/.claude/skills/gstack/browse/dist/browse',
+      '/home/test/.claude/skills/gstack/browse/dist/browse',
+    ]);
   });
 
-  test('returns string path when binary exists', () => {
-    const result = locateBinary();
-    if (result !== null) {
-      expect(existsSync(result)).toBe(true);
-    }
+  test('prefers explicit GSTACK_BROWSE_BIN override', () => {
+    const result = locateBinary({
+      env: {
+        GSTACK_BROWSE_BIN: '/custom/browse',
+        CODEX_HOME: '/codex-home',
+      },
+      gitRoot: '/repo',
+      homeDir: '/home/test',
+      exists: candidate => candidate === '/custom/browse',
+    });
+
+    expect(result).toBe('/custom/browse');
+  });
+
+  test('prefers workspace-local Codex install over global Codex install', () => {
+    const result = locateBinary({
+      env: { CODEX_HOME: '/codex-home' },
+      gitRoot: '/repo',
+      homeDir: '/home/test',
+      exists: candidate =>
+        candidate === '/repo/.codex/skills/gstack/browse/dist/browse' ||
+        candidate === '/codex-home/skills/gstack/browse/dist/browse',
+    });
+
+    expect(result).toBe('/repo/.codex/skills/gstack/browse/dist/browse');
+  });
+
+  test('falls back to legacy Claude install paths when Codex install is absent', () => {
+    const result = locateBinary({
+      env: { CODEX_HOME: '/codex-home' },
+      gitRoot: '/repo',
+      homeDir: '/home/test',
+      exists: candidate => candidate === '/home/test/.claude/skills/gstack/browse/dist/browse',
+    });
+
+    expect(result).toBe('/home/test/.claude/skills/gstack/browse/dist/browse');
+  });
+
+  test('returns null when no candidate exists', () => {
+    const result = locateBinary({
+      env: { CODEX_HOME: '/codex-home' },
+      gitRoot: '/repo',
+      homeDir: '/home/test',
+      exists: () => false,
+    });
+
+    expect(result).toBeNull();
   });
 });

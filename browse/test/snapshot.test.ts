@@ -12,23 +12,33 @@ import { handleReadCommand } from '../src/read-commands';
 import { handleWriteCommand } from '../src/write-commands';
 import { handleMetaCommand } from '../src/meta-commands';
 import * as fs from 'fs';
+import type { FixtureServer } from './test-server';
 
-let testServer: ReturnType<typeof startTestServer>;
+let testServer: FixtureServer;
 let bm: BrowserManager;
 let baseUrl: string;
 const shutdown = async () => {};
 
+async function closeBrowserManager(manager: BrowserManager | undefined): Promise<void> {
+  if (!manager) return;
+
+  await Promise.race([
+    manager.close().catch(() => {}),
+    new Promise<void>(resolve => setTimeout(resolve, 2000)),
+  ]);
+}
+
 beforeAll(async () => {
-  testServer = startTestServer(0);
+  testServer = await startTestServer(0);
   baseUrl = testServer.url;
 
   bm = new BrowserManager();
   await bm.launch();
 });
 
-afterAll(() => {
+afterAll(async () => {
   try { testServer.server.stop(); } catch {}
-  setTimeout(() => process.exit(0), 500);
+  await closeBrowserManager(bm);
 });
 
 // ─── Snapshot Output ────────────────────────────────────────────

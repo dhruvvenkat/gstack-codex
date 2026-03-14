@@ -16,24 +16,34 @@ import { consoleBuffer, networkBuffer, dialogBuffer, addConsoleEntry, addNetwork
 import * as fs from 'fs';
 import { spawn } from 'child_process';
 import * as path from 'path';
+import type { FixtureServer } from './test-server';
 
-let testServer: ReturnType<typeof startTestServer>;
+const BUN_BIN = process.execPath;
+
+let testServer: FixtureServer;
 let bm: BrowserManager;
 let baseUrl: string;
 
+async function closeBrowserManager(manager: BrowserManager | undefined): Promise<void> {
+  if (!manager) return;
+
+  await Promise.race([
+    manager.close().catch(() => {}),
+    new Promise<void>(resolve => setTimeout(resolve, 2000)),
+  ]);
+}
+
 beforeAll(async () => {
-  testServer = startTestServer(0);
+  testServer = await startTestServer(0);
   baseUrl = testServer.url;
 
   bm = new BrowserManager();
   await bm.launch();
 });
 
-afterAll(() => {
-  // Force kill browser instead of graceful close (avoids hang)
+afterAll(async () => {
   try { testServer.server.stop(); } catch {}
-  // bm.close() can hang — just let process exit handle it
-  setTimeout(() => process.exit(0), 500);
+  await closeBrowserManager(bm);
 });
 
 // ─── Navigation ─────────────────────────────────────────────────
@@ -426,8 +436,8 @@ describe('Status', () => {
 describe('CLI server script resolution', () => {
   test('prefers adjacent browse/src/server.ts for compiled project installs', () => {
     const root = fs.mkdtempSync('/tmp/gstack-cli-');
-    const execPath = path.join(root, '.claude/skills/gstack/browse/dist/browse');
-    const serverPath = path.join(root, '.claude/skills/gstack/browse/src/server.ts');
+    const execPath = path.join(root, '.codex/skills/gstack/browse/dist/browse');
+    const serverPath = path.join(root, '.codex/skills/gstack/browse/src/server.ts');
 
     fs.mkdirSync(path.dirname(execPath), { recursive: true });
     fs.mkdirSync(path.dirname(serverPath), { recursive: true });
@@ -463,7 +473,7 @@ describe('CLI lifecycle', () => {
     }
     cliEnv.BROWSE_STATE_FILE = stateFile;
     const result = await new Promise<{ code: number; stdout: string; stderr: string }>((resolve) => {
-      const proc = spawn('bun', ['run', cliPath, 'status'], {
+      const proc = spawn(BUN_BIN, ['run', cliPath, 'status'], {
         timeout: 15000,
         env: cliEnv,
       });
@@ -596,57 +606,68 @@ describe('CircularBuffer', () => {
 // ─── Dialog Handling ─────────────────────────────────────────
 
 describe('Dialog handling', () => {
+  let dialogBm: BrowserManager;
+
+  beforeAll(async () => {
+    dialogBm = new BrowserManager();
+    await dialogBm.launch();
+  });
+
+  afterAll(async () => {
+    await closeBrowserManager(dialogBm);
+  });
+
   test('alert does not hang — auto-accepted', async () => {
-    await handleWriteCommand('goto', [baseUrl + '/dialog.html'], bm);
-    await handleWriteCommand('click', ['#alert-btn'], bm);
+    await handleWriteCommand('goto', [baseUrl + '/dialog.html'], dialogBm);
+    await handleWriteCommand('click', ['#alert-btn'], dialogBm);
     // If we get here, dialog was handled (no hang)
-    const result = await handleReadCommand('dialog', [], bm);
+    const result = await handleReadCommand('dialog', [], dialogBm);
     expect(result).toContain('alert');
     expect(result).toContain('Hello from alert');
     expect(result).toContain('accepted');
   });
 
   test('confirm is auto-accepted by default', async () => {
-    await handleWriteCommand('goto', [baseUrl + '/dialog.html'], bm);
-    await handleWriteCommand('click', ['#confirm-btn'], bm);
+    await handleWriteCommand('goto', [baseUrl + '/dialog.html'], dialogBm);
+    await handleWriteCommand('click', ['#confirm-btn'], dialogBm);
     // Wait for DOM update
     await new Promise(r => setTimeout(r, 100));
-    const result = await handleReadCommand('js', ['document.querySelector("#confirm-result").textContent'], bm);
+    const result = await handleReadCommand('js', ['document.querySelector("#confirm-result").textContent'], dialogBm);
     expect(result).toBe('confirmed');
   });
 
   test('dialog-dismiss changes behavior', async () => {
-    const setResult = await handleWriteCommand('dialog-dismiss', [], bm);
+    const setResult = await handleWriteCommand('dialog-dismiss', [], dialogBm);
     expect(setResult).toContain('dismissed');
 
-    await handleWriteCommand('goto', [baseUrl + '/dialog.html'], bm);
-    await handleWriteCommand('click', ['#confirm-btn'], bm);
+    await handleWriteCommand('goto', [baseUrl + '/dialog.html'], dialogBm);
+    await handleWriteCommand('click', ['#confirm-btn'], dialogBm);
     await new Promise(r => setTimeout(r, 100));
-    const result = await handleReadCommand('js', ['document.querySelector("#confirm-result").textContent'], bm);
+    const result = await handleReadCommand('js', ['document.querySelector("#confirm-result").textContent'], dialogBm);
     expect(result).toBe('cancelled');
 
     // Reset to accept
-    await handleWriteCommand('dialog-accept', [], bm);
+    await handleWriteCommand('dialog-accept', [], dialogBm);
   });
 
   test('dialog-accept with text provides prompt response', async () => {
-    const setResult = await handleWriteCommand('dialog-accept', ['TestUser'], bm);
+    const setResult = await handleWriteCommand('dialog-accept', ['TestUser'], dialogBm);
     expect(setResult).toContain('TestUser');
 
-    await handleWriteCommand('goto', [baseUrl + '/dialog.html'], bm);
-    await handleWriteCommand('click', ['#prompt-btn'], bm);
+    await handleWriteCommand('goto', [baseUrl + '/dialog.html'], dialogBm);
+    await handleWriteCommand('click', ['#prompt-btn'], dialogBm);
     await new Promise(r => setTimeout(r, 100));
-    const result = await handleReadCommand('js', ['document.querySelector("#prompt-result").textContent'], bm);
+    const result = await handleReadCommand('js', ['document.querySelector("#prompt-result").textContent'], dialogBm);
     expect(result).toBe('TestUser');
 
     // Reset
-    await handleWriteCommand('dialog-accept', [], bm);
+    await handleWriteCommand('dialog-accept', [], dialogBm);
   });
 
   test('dialog --clear clears buffer', async () => {
-    const cleared = await handleReadCommand('dialog', ['--clear'], bm);
+    const cleared = await handleReadCommand('dialog', ['--clear'], dialogBm);
     expect(cleared).toContain('cleared');
-    const after = await handleReadCommand('dialog', [], bm);
+    const after = await handleReadCommand('dialog', [], dialogBm);
     expect(after).toContain('no dialogs');
   });
 });
@@ -654,71 +675,78 @@ describe('Dialog handling', () => {
 // ─── Element State Checks (is) ─────────────────────────────────
 
 describe('Element state checks', () => {
+  let stateBm: BrowserManager;
+
   beforeAll(async () => {
-    await handleWriteCommand('goto', [baseUrl + '/states.html'], bm);
+    stateBm = new BrowserManager();
+    await stateBm.launch();
+    await handleWriteCommand('goto', [baseUrl + '/states.html'], stateBm);
+  });
+
+  afterAll(async () => {
+    await closeBrowserManager(stateBm);
   });
 
   test('is visible returns true for visible element', async () => {
-    const result = await handleReadCommand('is', ['visible', '#visible-div'], bm);
+    const result = await handleReadCommand('is', ['visible', '#visible-div'], stateBm);
     expect(result).toBe('true');
   });
 
   test('is hidden returns true for hidden element', async () => {
-    const result = await handleReadCommand('is', ['hidden', '#hidden-div'], bm);
+    const result = await handleReadCommand('is', ['hidden', '#hidden-div'], stateBm);
     expect(result).toBe('true');
   });
 
   test('is visible returns false for hidden element', async () => {
-    const result = await handleReadCommand('is', ['visible', '#hidden-div'], bm);
+    const result = await handleReadCommand('is', ['visible', '#hidden-div'], stateBm);
     expect(result).toBe('false');
   });
 
   test('is enabled returns true for enabled input', async () => {
-    const result = await handleReadCommand('is', ['enabled', '#enabled-input'], bm);
+    const result = await handleReadCommand('is', ['enabled', '#enabled-input'], stateBm);
     expect(result).toBe('true');
   });
 
   test('is disabled returns true for disabled input', async () => {
-    const result = await handleReadCommand('is', ['disabled', '#disabled-input'], bm);
+    const result = await handleReadCommand('is', ['disabled', '#disabled-input'], stateBm);
     expect(result).toBe('true');
   });
 
   test('is checked returns true for checked checkbox', async () => {
-    const result = await handleReadCommand('is', ['checked', '#checked-box'], bm);
+    const result = await handleReadCommand('is', ['checked', '#checked-box'], stateBm);
     expect(result).toBe('true');
   });
 
   test('is checked returns false for unchecked checkbox', async () => {
-    const result = await handleReadCommand('is', ['checked', '#unchecked-box'], bm);
+    const result = await handleReadCommand('is', ['checked', '#unchecked-box'], stateBm);
     expect(result).toBe('false');
   });
 
   test('is editable returns true for normal input', async () => {
-    const result = await handleReadCommand('is', ['editable', '#enabled-input'], bm);
+    const result = await handleReadCommand('is', ['editable', '#enabled-input'], stateBm);
     expect(result).toBe('true');
   });
 
   test('is editable returns false for readonly input', async () => {
-    const result = await handleReadCommand('is', ['editable', '#readonly-input'], bm);
+    const result = await handleReadCommand('is', ['editable', '#readonly-input'], stateBm);
     expect(result).toBe('false');
   });
 
   test('is focused after click', async () => {
-    await handleWriteCommand('click', ['#enabled-input'], bm);
-    const result = await handleReadCommand('is', ['focused', '#enabled-input'], bm);
+    await handleWriteCommand('click', ['#enabled-input'], stateBm);
+    const result = await handleReadCommand('is', ['focused', '#enabled-input'], stateBm);
     expect(result).toBe('true');
   });
 
   test('is with @ref works', async () => {
-    await handleMetaCommand('snapshot', ['-i'], bm, async () => {});
-    // Find a ref for the enabled input
-    const snap = await handleMetaCommand('snapshot', ['-i'], bm, async () => {});
+    await handleMetaCommand('snapshot', ['-i'], stateBm, async () => {});
+    const snap = await handleMetaCommand('snapshot', ['-i'], stateBm, async () => {});
     const textboxLine = snap.split('\n').find(l => l.includes('[textbox]'));
     if (textboxLine) {
       const refMatch = textboxLine.match(/@(e\d+)/);
       if (refMatch) {
         const ref = `@${refMatch[1]}`;
-        const result = await handleReadCommand('is', ['visible', ref], bm);
+        const result = await handleReadCommand('is', ['visible', ref], stateBm);
         expect(result).toBe('true');
       }
     }
@@ -726,7 +754,7 @@ describe('Element state checks', () => {
 
   test('is with unknown property throws', async () => {
     try {
-      await handleReadCommand('is', ['bogus', '#enabled-input'], bm);
+      await handleReadCommand('is', ['bogus', '#enabled-input'], stateBm);
       expect(true).toBe(false);
     } catch (err: any) {
       expect(err.message).toContain('Unknown property');
@@ -735,7 +763,7 @@ describe('Element state checks', () => {
 
   test('is with missing args throws', async () => {
     try {
-      await handleReadCommand('is', ['visible'], bm);
+      await handleReadCommand('is', ['visible'], stateBm);
       expect(true).toBe(false);
     } catch (err: any) {
       expect(err.message).toContain('Usage');
