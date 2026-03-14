@@ -157,7 +157,7 @@ describe('config', () => {
 
 describe('resolveServerScript', () => {
   // Import the function from cli.ts
-  const { resolveServerScript } = require('../src/cli');
+  const { resolveServerScript, resolveBunExecutable } = require('../src/cli');
 
   test('uses BROWSE_SERVER_SCRIPT env when set', () => {
     const result = resolveServerScript({ BROWSE_SERVER_SCRIPT: '/custom/server.ts' }, '', '');
@@ -173,6 +173,26 @@ describe('resolveServerScript', () => {
   test('throws when server.ts cannot be found', () => {
     expect(() => resolveServerScript({}, '/nonexistent/$bunfs', '/nonexistent/browse'))
       .toThrow('Cannot find server.ts');
+  });
+
+  test('resolveBunExecutable prefers BUN_BIN env', () => {
+    const result = resolveBunExecutable({ BUN_BIN: '/custom/bun' }, '/usr/bin/other', '/home/test');
+    expect(result).toBe('/custom/bun');
+  });
+
+  test('resolveBunExecutable uses current execPath when already running under bun', () => {
+    const result = resolveBunExecutable({}, '/home/test/.bun/bin/bun', '/home/test');
+    expect(result).toBe('/home/test/.bun/bin/bun');
+  });
+
+  test('resolveBunExecutable falls back to ~/.bun/bin/bun when present', () => {
+    const tmpHome = path.join(os.tmpdir(), `bun-home-${Date.now()}`);
+    const bunPath = path.join(tmpHome, '.bun', 'bin');
+    fs.mkdirSync(bunPath, { recursive: true });
+    fs.writeFileSync(path.join(bunPath, 'bun'), '');
+    const result = resolveBunExecutable({}, '/usr/bin/other', tmpHome);
+    expect(result).toBe(path.join(tmpHome, '.bun', 'bin', 'bun'));
+    fs.rmSync(tmpHome, { recursive: true, force: true });
   });
 });
 

@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const ROOT = path.resolve(import.meta.dir, '..');
+const BUN_BIN = process.execPath;
 
 describe('gen-skill-docs', () => {
   test('generated SKILL.md contains all command categories', () => {
@@ -97,7 +98,7 @@ describe('gen-skill-docs', () => {
   });
 
   test('generated files are fresh (match --dry-run)', () => {
-    const result = Bun.spawnSync(['bun', 'run', 'scripts/gen-skill-docs.ts', '--dry-run'], {
+    const result = Bun.spawnSync([BUN_BIN, 'run', 'scripts/gen-skill-docs.ts', '--dry-run'], {
       cwd: ROOT,
       stdout: 'pipe',
       stderr: 'pipe',

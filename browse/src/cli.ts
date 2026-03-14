@@ -11,6 +11,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { homedir } from 'os';
 import { resolveConfig, ensureStateDir, readVersionHash } from './config';
 
 const config = resolveConfig();
@@ -47,6 +48,27 @@ export function resolveServerScript(
 }
 
 const SERVER_SCRIPT = resolveServerScript();
+
+export function resolveBunExecutable(
+  env: Record<string, string | undefined> = process.env,
+  execPath: string = process.execPath,
+  homeDir: string = homedir(),
+): string {
+  if (env.BUN_BIN) {
+    return env.BUN_BIN;
+  }
+
+  if (path.basename(execPath) === 'bun') {
+    return execPath;
+  }
+
+  const userInstall = path.join(homeDir, '.bun', 'bin', 'bun');
+  if (fs.existsSync(userInstall)) {
+    return userInstall;
+  }
+
+  return 'bun';
+}
 
 interface ServerState {
   pid: number;
@@ -140,7 +162,7 @@ async function startServer(): Promise<ServerState> {
   try { fs.unlinkSync(config.stateFile); } catch {}
 
   // Start server as detached background process
-  const proc = Bun.spawn(['bun', 'run', SERVER_SCRIPT], {
+  const proc = Bun.spawn([resolveBunExecutable(), 'run', SERVER_SCRIPT], {
     stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env, BROWSE_STATE_FILE: config.stateFile },
   });
