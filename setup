@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# gstack setup — build browser binary + register all skills with Claude Code
+# gstack setup — build browser binary + register all skills with Codex
 set -e
 
 GSTACK_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -60,7 +60,7 @@ fi
 # 3. Ensure ~/.gstack global state directory exists
 mkdir -p "$HOME/.gstack/projects"
 
-# 4. Only create skill symlinks if we're inside a .claude/skills directory
+# 4. Only create skill symlinks if we're inside a skills directory
 SKILLS_BASENAME="$(basename "$SKILLS_DIR")"
 if [ "$SKILLS_BASENAME" = "skills" ]; then
   linked=()
@@ -83,10 +83,11 @@ if [ "$SKILLS_BASENAME" = "skills" ]; then
   if [ ${#linked[@]} -gt 0 ]; then
     echo "  linked skills: ${linked[*]}"
   fi
+  echo "  restart Codex to pick up new skills"
 else
   echo "gstack ready."
   echo "  browse: $BROWSE_BIN"
-  echo "  (skipped skill symlinks — not inside .claude/skills/)"
+  echo "  (skipped skill symlinks — not inside a skills directory)"
 fi
 
 # 4. First-time welcome + legacy cleanup
