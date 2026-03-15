@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test';
-import { parseNDJSON, resolveCodexExecutable } from './session-runner';
+import { parseNDJSON, resolveBunForE2E, resolveCodexExecutable } from './session-runner';
 
 // Fixture: minimal NDJSON session (legacy Claude-style)
 const LEGACY_FIXTURE_LINES = [
@@ -123,5 +123,15 @@ describe('parseNDJSON', () => {
 describe('resolveCodexExecutable', () => {
   test('prefers explicit CODEX_BIN env override', () => {
     expect(resolveCodexExecutable({ CODEX_BIN: '/custom/codex' }, '/home/test')).toBe('/custom/codex');
+  });
+});
+
+describe('resolveBunForE2E', () => {
+  test('prefers explicit BUN_BIN env override', () => {
+    expect(resolveBunForE2E({ BUN_BIN: '/custom/bun' }, '/home/test', '/usr/bin/other')).toBe('/custom/bun');
+  });
+
+  test('uses current execPath when already running under bun.exe', () => {
+    expect(resolveBunForE2E({}, '/home/test', 'C:\\Users\\Owner\\.bun\\bin\\bun.exe')).toBe('C:\\Users\\Owner\\.bun\\bin\\bun.exe');
   });
 });

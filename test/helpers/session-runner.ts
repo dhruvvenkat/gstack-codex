@@ -203,6 +203,38 @@ export function resolveCodexExecutable(
   return 'codex';
 }
 
+export function resolveBunForE2E(
+  env: Record<string, string | undefined> = process.env,
+  homeDir: string = os.homedir(),
+  execPath: string = process.execPath,
+): string {
+  if (env.BUN_BIN) {
+    return env.BUN_BIN;
+  }
+
+  if (path.basename(execPath).toLowerCase() === 'bun' || path.basename(execPath).toLowerCase() === 'bun.exe') {
+    return execPath;
+  }
+
+  const candidates = process.platform === 'win32'
+    ? [
+        path.join(homeDir, '.bun', 'bin', 'bun.exe'),
+        path.join(homeDir, '.bun', 'bin', 'bun'),
+      ]
+    : [
+        path.join(homeDir, '.bun', 'bin', 'bun'),
+        path.join(homeDir, '.bun', 'bin', 'bun.exe'),
+      ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return 'bun';
+}
+
 export async function runSkillTest(options: {
   prompt: string;
   workingDirectory: string;
@@ -261,6 +293,7 @@ export async function runSkillTest(options: {
     stdin: 'pipe',
     stdout: 'pipe',
     stderr: 'pipe',
+    env: { ...process.env, BUN_BIN: resolveBunForE2E() },
   });
   proc.stdin.write(prompt);
   proc.stdin.end();
