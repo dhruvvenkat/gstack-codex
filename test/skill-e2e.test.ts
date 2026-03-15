@@ -45,7 +45,7 @@ function recordE2E(name: string, suite: string, result: SkillTestResult, extra?:
   });
 }
 
-let testServer: ReturnType<typeof startTestServer>;
+let testServer: Awaited<ReturnType<typeof startTestServer>>;
 let tmpDir: string;
 const browseBin = (() => {
   const candidates = process.platform === 'win32'
@@ -156,8 +156,8 @@ if (evalsEnabled) {
 }
 
 describeE2E('Skill E2E tests', () => {
-  beforeAll(() => {
-    testServer = startTestServer();
+  beforeAll(async () => {
+    testServer = await startTestServer();
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-'));
     setupBrowseShims(tmpDir);
   });
@@ -314,8 +314,8 @@ Report the exact output — either "READY: <path>" or "NEEDS_SETUP".`,
 describeE2E('QA skill E2E', () => {
   let qaDir: string;
 
-  beforeAll(() => {
-    testServer = testServer || startTestServer();
+  beforeAll(async () => {
+    testServer = testServer || await startTestServer();
     qaDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-qa-'));
     setupBrowseShims(qaDir);
 
@@ -363,7 +363,7 @@ Write your report to ${qaDir}/qa-reports/qa-report.md`,
 describeE2E('Review skill E2E', () => {
   let reviewDir: string;
 
-  beforeAll(() => {
+  beforeAll(async () => {
     reviewDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-review-'));
 
     // Pre-build a git repo with a vulnerable file on a feature branch (decision 5A)
@@ -426,10 +426,10 @@ const describeOutcome = (evalsEnabled && hasApiKey) ? describe : describe.skip;
 describeOutcome('Planted-bug outcome evals', () => {
   let outcomeDir: string;
 
-  beforeAll(() => {
+  beforeAll(async () => {
     // Always start fresh — previous tests' agents may have killed the shared server
     try { testServer?.server?.stop(); } catch {}
-    testServer = startTestServer();
+    testServer = await startTestServer();
     outcomeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-outcome-'));
     setupBrowseShims(outcomeDir);
 
