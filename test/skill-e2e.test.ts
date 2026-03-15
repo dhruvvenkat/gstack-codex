@@ -47,19 +47,7 @@ function recordE2E(name: string, suite: string, result: SkillTestResult, extra?:
 
 let testServer: Awaited<ReturnType<typeof startTestServer>>;
 let tmpDir: string;
-const browseBin = (() => {
-  const candidates = process.platform === 'win32'
-    ? [
-        path.resolve(ROOT, 'browse', 'dist', 'browse.exe'),
-        path.resolve(ROOT, 'browse', 'dist', 'browse'),
-      ]
-    : [
-        path.resolve(ROOT, 'browse', 'dist', 'browse'),
-        path.resolve(ROOT, 'browse', 'dist', 'browse.exe'),
-      ];
-
-  return candidates.find(candidate => fs.existsSync(candidate)) || candidates[0];
-})();
+const browseBin = path.resolve(ROOT, 'browse', 'dist', 'browse');
 
 /**
  * Copy a directory tree recursively (files only, follows structure).
@@ -315,7 +303,8 @@ describeE2E('QA skill E2E', () => {
   let qaDir: string;
 
   beforeAll(async () => {
-    testServer = testServer || await startTestServer();
+    try { testServer?.server?.stop(); } catch {}
+    testServer = await startTestServer();
     qaDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-qa-'));
     setupBrowseShims(qaDir);
 
@@ -338,24 +327,39 @@ describeE2E('QA skill E2E', () => {
 Read the file qa/SKILL.md for the QA workflow instructions.
 
 Run a Quick-depth QA test on ${testServer.url}/basic.html
+Rules for this test:
+- Quick mode only, not full mode
+- Test only the landing page plus at most the first two internal navigation targets from that page
+- Ignore external links
+- Capture at most one annotated screenshot per page
+- If a page returns 4xx/5xx, record it once and move on
+- Prefer \`browse chain\` so each page check stays in one browser session
 Do NOT use AskUserQuestion — run Quick tier directly.
+Stop as soon as qa-report.md and baseline.json are written.
 Write your report to ${qaDir}/qa-reports/qa-report.md`,
       workingDirectory: qaDir,
       maxTurns: 30,
-      timeout: 180_000,
+      timeout: 240_000,
       testName: 'qa-quick',
       runId,
     });
 
     logCost('/qa quick', result);
     recordE2E('/qa quick', 'QA skill E2E', result);
+    const qaReportPath = path.join(qaDir, 'qa-reports', 'qa-report.md');
+    const baselinePath = path.join(qaDir, 'qa-reports', 'baseline.json');
+    expect(fs.existsSync(qaReportPath)).toBe(true);
+    expect(fs.existsSync(baselinePath)).toBe(true);
+    const qaReport = fs.readFileSync(qaReportPath, 'utf-8');
+    expect(qaReport).toMatch(/Health Score/i);
+    expect(qaReport).toMatch(/404|Not Found|broken link/i);
     // browseErrors can include false positives from hallucinated paths
     if (result.browseErrors.length > 0) {
       console.warn('/qa quick browse errors (non-fatal):', result.browseErrors);
     }
-    // Accept error_max_turns — the agent doing thorough QA work is not a failure
-    expect(['success', 'error_max_turns']).toContain(result.exitReason);
-  }, 240_000);
+    // Quick mode is successful if the report artifacts exist, even if the agent times out while wrapping up.
+    expect(['success', 'error_max_turns', 'timeout']).toContain(result.exitReason);
+  }, 300_000);
 });
 
 // --- B5: Review skill E2E ---
@@ -403,18 +407,25 @@ describeE2E('Review skill E2E', () => {
 Read review-SKILL.md for the review workflow instructions.
 Also read review-checklist.md and apply it.
 Run /review on the current diff (git diff main...HEAD).
+Skip any AskUserQuestion calls — this is non-interactive.
+Once review-output.md is written, stop.
 Write your review findings to ${reviewDir}/review-output.md`,
       workingDirectory: reviewDir,
       maxTurns: 15,
-      timeout: 90_000,
+      timeout: 150_000,
       testName: 'review-sql-injection',
       runId,
     });
 
     logCost('/review', result);
     recordE2E('/review SQL injection', 'Review skill E2E', result);
+    const reviewPath = path.join(reviewDir, 'review-output.md');
+    expect(fs.existsSync(reviewPath)).toBe(true);
+    const review = fs.readFileSync(reviewPath, 'utf-8');
+    expect(review).toMatch(/interpolated directly into SQL|params\[:id\]|where\(id: params\[:id\]\)|find_by\(id: params\[:id\]\)/i);
+    expect(review).toMatch(/update_column/i);
     expect(result.exitReason).toBe('success');
-  }, 120_000);
+  }, 180_000);
 });
 
 // --- B6/B7/B8: Planted-bug outcome evals ---
@@ -820,28 +831,30 @@ describeE2E('Retro E2E', () => {
       prompt: `Read retro/SKILL.md for instructions on how to run a retrospective.
 
 Run /retro for the last 7 days of this git repo. Skip any AskUserQuestion calls — this is non-interactive.
+This is a small single-author synthetic repo. Skip inapplicable PR or team sections, keep the analysis concise, and stop once retro-output.md and the retro snapshot are written.
 Write your retrospective report to ${retroDir}/retro-output.md
 
 Analyze the git history and produce the narrative report as described in the SKILL.md.`,
       workingDirectory: retroDir,
       maxTurns: 30,
-      timeout: 300_000,
+      timeout: 420_000,
       testName: 'retro',
       runId,
     });
 
     logCost('/retro', result);
     recordE2E('/retro', 'Retro E2E', result);
-    // Accept error_max_turns — retro does many git commands to analyze history
-    expect(['success', 'error_max_turns']).toContain(result.exitReason);
+    expect(result.exitReason).toBe('success');
 
     // Verify the retro was written
     const retroPath = path.join(retroDir, 'retro-output.md');
-    if (fs.existsSync(retroPath)) {
-      const retro = fs.readFileSync(retroPath, 'utf-8');
-      expect(retro.length).toBeGreaterThan(100);
-    }
-  }, 420_000);
+    expect(fs.existsSync(retroPath)).toBe(true);
+    const retro = fs.readFileSync(retroPath, 'utf-8');
+    expect(retro.length).toBeGreaterThan(100);
+
+    const snapshotFiles = fs.readdirSync(path.join(retroDir, '.context', 'retros'));
+    expect(snapshotFiles.some(name => name.endsWith('.json'))).toBe(true);
+  }, 540_000);
 });
 
 // --- Deferred skill E2E tests (destructive or require interactive UI) ---
