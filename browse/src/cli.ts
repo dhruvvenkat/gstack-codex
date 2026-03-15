@@ -53,34 +53,18 @@ export function resolveBunExecutable(
   env: Record<string, string | undefined> = process.env,
   execPath: string = process.execPath,
   homeDir: string = homedir(),
-  platform: NodeJS.Platform = process.platform,
 ): string {
   if (env.BUN_BIN) {
     return env.BUN_BIN;
   }
 
-  if (path.basename(execPath) === 'bun') {
+  if (path.basename(execPath).toLowerCase() === 'bun') {
     return execPath;
   }
 
-  if (path.basename(execPath).toLowerCase() === 'bun.exe') {
-    return execPath;
-  }
-
-  const candidates = platform === 'win32'
-    ? [
-        path.join(homeDir, '.bun', 'bin', 'bun.exe'),
-        path.join(homeDir, '.bun', 'bin', 'bun'),
-      ]
-    : [
-        path.join(homeDir, '.bun', 'bin', 'bun'),
-        path.join(homeDir, '.bun', 'bin', 'bun.exe'),
-      ];
-
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return candidate;
-    }
+  const userInstall = path.join(homeDir, '.bun', 'bin', 'bun');
+  if (fs.existsSync(userInstall)) {
+    return userInstall;
   }
 
   return 'bun';

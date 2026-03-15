@@ -183,16 +183,10 @@ export function resolveCodexExecutable(
     return env.CODEX_BIN;
   }
 
-  const candidates = process.platform === 'win32'
-    ? [
-        path.join(homeDir, '.codex', '.sandbox-bin', 'codex.exe'),
-        path.join(homeDir, 'AppData', 'Roaming', 'npm', 'codex.cmd'),
-        'codex',
-      ]
-    : [
-        path.join(homeDir, '.codex', '.sandbox-bin', 'codex'),
-        'codex',
-      ];
+  const candidates = [
+    path.join(homeDir, '.codex', '.sandbox-bin', 'codex'),
+    'codex',
+  ];
 
   for (const candidate of candidates) {
     if (candidate === 'codex' || fs.existsSync(candidate)) {
@@ -212,24 +206,13 @@ export function resolveBunForE2E(
     return env.BUN_BIN;
   }
 
-  if (path.basename(execPath).toLowerCase() === 'bun' || path.basename(execPath).toLowerCase() === 'bun.exe') {
+  if (path.basename(execPath).toLowerCase() === 'bun') {
     return execPath;
   }
 
-  const candidates = process.platform === 'win32'
-    ? [
-        path.join(homeDir, '.bun', 'bin', 'bun.exe'),
-        path.join(homeDir, '.bun', 'bin', 'bun'),
-      ]
-    : [
-        path.join(homeDir, '.bun', 'bin', 'bun'),
-        path.join(homeDir, '.bun', 'bin', 'bun.exe'),
-      ];
-
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return candidate;
-    }
+  const userInstall = path.join(homeDir, '.bun', 'bin', 'bun');
+  if (fs.existsSync(userInstall)) {
+    return userInstall;
   }
 
   return 'bun';

@@ -1,5 +1,8 @@
 import { describe, test, expect } from 'bun:test';
 import { parseNDJSON, resolveBunForE2E, resolveCodexExecutable } from './session-runner';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 
 // Fixture: minimal NDJSON session (legacy Claude-style)
 const LEGACY_FIXTURE_LINES = [
@@ -124,6 +127,18 @@ describe('resolveCodexExecutable', () => {
   test('prefers explicit CODEX_BIN env override', () => {
     expect(resolveCodexExecutable({ CODEX_BIN: '/custom/codex' }, '/home/test')).toBe('/custom/codex');
   });
+
+  test('falls back to ~/.codex/.sandbox-bin/codex when present', () => {
+    const tmpHome = path.join(os.tmpdir(), `codex-home-${Date.now()}`);
+    const codexPath = path.join(tmpHome, '.codex', '.sandbox-bin');
+    fs.mkdirSync(codexPath, { recursive: true });
+    fs.writeFileSync(path.join(codexPath, 'codex'), '');
+    try {
+      expect(resolveCodexExecutable({}, tmpHome)).toBe(path.join(codexPath, 'codex'));
+    } finally {
+      fs.rmSync(tmpHome, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('resolveBunForE2E', () => {
@@ -131,7 +146,19 @@ describe('resolveBunForE2E', () => {
     expect(resolveBunForE2E({ BUN_BIN: '/custom/bun' }, '/home/test', '/usr/bin/other')).toBe('/custom/bun');
   });
 
-  test('uses current execPath when already running under bun.exe', () => {
-    expect(resolveBunForE2E({}, '/home/test', 'C:\\Users\\Owner\\.bun\\bin\\bun.exe')).toBe('C:\\Users\\Owner\\.bun\\bin\\bun.exe');
+  test('uses current execPath when already running under bun', () => {
+    expect(resolveBunForE2E({}, '/home/test', '/home/test/.bun/bin/bun')).toBe('/home/test/.bun/bin/bun');
+  });
+
+  test('falls back to ~/.bun/bin/bun when present', () => {
+    const tmpHome = path.join(os.tmpdir(), `bun-home-${Date.now()}`);
+    const bunPath = path.join(tmpHome, '.bun', 'bin');
+    fs.mkdirSync(bunPath, { recursive: true });
+    fs.writeFileSync(path.join(bunPath, 'bun'), '');
+    try {
+      expect(resolveBunForE2E({}, tmpHome, '/usr/bin/other')).toBe(path.join(bunPath, 'bun'));
+    } finally {
+      fs.rmSync(tmpHome, { recursive: true, force: true });
+    }
   });
 });

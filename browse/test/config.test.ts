@@ -185,11 +185,6 @@ describe('resolveServerScript', () => {
     expect(result).toBe('/home/test/.bun/bin/bun');
   });
 
-  test('resolveBunExecutable uses current execPath when already running under bun.exe', () => {
-    const result = resolveBunExecutable({}, 'C:\\Users\\Owner\\.bun\\bin\\bun.exe', 'C:\\Users\\Owner');
-    expect(result).toBe('C:\\Users\\Owner\\.bun\\bin\\bun.exe');
-  });
-
   test('resolveBunExecutable falls back to ~/.bun/bin/bun when present', () => {
     const tmpHome = path.join(os.tmpdir(), `bun-home-${Date.now()}`);
     const bunPath = path.join(tmpHome, '.bun', 'bin');
@@ -198,19 +193,6 @@ describe('resolveServerScript', () => {
     const result = resolveBunExecutable({}, '/usr/bin/other', tmpHome);
     expect(result).toBe(path.join(tmpHome, '.bun', 'bin', 'bun'));
     fs.rmSync(tmpHome, { recursive: true, force: true });
-  });
-
-  test('resolveBunExecutable prefers ~/.bun/bin/bun.exe on Windows when present', () => {
-    const tmpHome = path.join(os.tmpdir(), `bun-home-win-${Date.now()}`);
-    const bunPath = path.join(tmpHome, '.bun', 'bin');
-    fs.mkdirSync(bunPath, { recursive: true });
-    fs.writeFileSync(path.join(bunPath, 'bun.exe'), '');
-    try {
-      const result = resolveBunExecutable({}, '/usr/bin/other', tmpHome, 'win32');
-      expect(result).toBe(path.join(tmpHome, '.bun', 'bin', 'bun.exe'));
-    } finally {
-      fs.rmSync(tmpHome, { recursive: true, force: true });
-    }
   });
 });
 
