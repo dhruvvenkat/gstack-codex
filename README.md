@@ -1,8 +1,8 @@
 # gstack
 
-**gstack turns Claude Code from one generic assistant into a team of specialists you can summon on demand.**
+**gstack turns Codex from one generic assistant into a team of specialists you can summon on demand.**
 
-Eight opinionated workflow skills for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Plan review, code review, one-command shipping, browser automation, QA testing, and engineering retrospectives — all as slash commands.
+Eight opinionated workflow skills for Codex, plus a fast local browser CLI. Plan review, code review, one-command shipping, browser automation, QA testing, and engineering retrospectives — all as slash skills or scripted `codex exec` runs.
 
 ### Without gstack
 
@@ -81,15 +81,15 @@ Claude: [Smoke test: homepage + 5 pages, 30 seconds]
 
 ## Who this is for
 
-You already use Claude Code heavily and want consistent, high-rigor workflows instead of one mushy generic mode. You want to tell the model what kind of brain to use right now — founder taste, engineering rigor, paranoid review, or fast execution.
+You already use Codex heavily and want consistent, high-rigor workflows instead of one mushy generic mode. You want to tell the model what kind of brain to use right now — founder taste, engineering rigor, paranoid review, or fast execution.
 
 This is not a prompt pack for beginners. It is an operating system for people who ship.
 
 ## How to fly: 10 sessions at once
 
-gstack is powerful with one Claude Code session. It is transformative with ten.
+gstack is powerful with one Codex session. It is transformative with ten.
 
-[Conductor](https://conductor.build) runs multiple Claude Code sessions in parallel — each in its own isolated workspace. That means you can have one session running `/qa` on staging, another doing `/review` on a PR, a third implementing a feature, and seven more working on other branches. All at the same time.
+[Conductor](https://conductor.build) runs multiple Codex sessions in parallel — each in its own isolated workspace. That means you can have one session running `/qa` on staging, another doing `/review` on a PR, a third implementing a feature, and seven more working on other branches. All at the same time.
 
 Each workspace gets its own isolated browser instance automatically — separate Chromium process, cookies, tabs, and logs stored in `.gstack/` inside each project root. No port collisions, no shared state, no configuration needed. `/browse` and `/qa` sessions never interfere with each other, even across ten parallel workspaces.
 
@@ -97,29 +97,93 @@ This is the setup I use. One person, ten parallel agents, each with the right co
 
 ## Install
 
-**Requirements:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Git](https://git-scm.com/), [Bun](https://bun.sh/) v1.0+. `/browse` compiles a native binary — works on macOS and Linux (x64 and arm64).
+**Requirements:** Codex CLI, [Git](https://git-scm.com/), [Bun](https://bun.sh/) v1.0+, macOS or Linux, and outbound network access for Codex plus Playwright downloads. `/browse` compiles a native binary and installs Playwright Chromium on first setup.
 
-### Step 1: Install on your machine
+If Bun was installed with the standard installer and `bun` is not on your `PATH` yet, run:
 
-Open Claude Code and paste this. Claude will do the rest.
+```bash
+export PATH="$HOME/.bun/bin:$PATH"
+```
 
-> Install gstack: run `git clone https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup` then add a "gstack" section to CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, and lists the available skills: /plan-ceo-review, /plan-eng-review, /review, /ship, /browse, /qa, /setup-browser-cookies, /retro. Then ask the user if they also want to add gstack to the current project so teammates get it.
+### Step 1: Install globally for Codex
 
-### Step 2: Add to your repo so teammates get it (optional)
+Clone gstack anywhere you keep local tools, then register that checkout with Codex:
 
-> Add gstack to this project: run `cp -Rf ~/.claude/skills/gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup` then add a "gstack" section to this project's CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, lists the available skills: /plan-ceo-review, /plan-eng-review, /review, /ship, /browse, /qa, /setup-browser-cookies, /retro, and tells Claude that if gstack skills aren't working, run `cd .claude/skills/gstack && ./setup` to build the binary and register skills.
+```bash
+git clone https://github.com/garrytan/gstack.git ~/src/gstack
+cd ~/src/gstack
+./setup-codex
+```
 
-Real files get committed to your repo (not a submodule), so `git clone` just works. The binary and node\_modules are gitignored — teammates just need to run `cd .claude/skills/gstack && ./setup` once to build (or `/browse` handles it automatically on first use).
+`./setup-codex` symlinks your checkout into `${CODEX_HOME:-$HOME/.codex}/skills/gstack`, builds `browse/dist/browse` if needed, installs Playwright Chromium, and links the individual skills under `${CODEX_HOME:-$HOME/.codex}/skills/`.
+
+Restart Codex after setup so it picks up the new skills.
+
+### Step 2: Vendor it into a repo so teammates get the same version (optional)
+
+From the repo where you want project-local skills:
+
+```bash
+mkdir -p .codex/skills
+git clone https://github.com/garrytan/gstack.git .codex/skills/gstack
+rm -rf .codex/skills/gstack/.git
+cd .codex/skills/gstack
+./setup
+```
+
+Commit `.codex/skills/gstack/` and teammates can activate the vendored copy with:
+
+```bash
+cd .codex/skills/gstack
+./setup
+```
+
+If your repo currently ignores `.codex/`, remove that ignore so the vendored skill files are actually committed.
+
+### Step 3: Start using it
+
+gstack does not ship a GUI. You use it in one of three ways:
+
+- Slash skills inside Codex: `/browse`, `/qa`, `/review`, `/retro`, `/plan-ceo-review`, `/plan-eng-review`, `/ship`, `/setup-browser-cookies`
+- Scripted or one-off runs with `codex exec -C /path/to/repo -`
+- The raw browser CLI at `browse/dist/browse`
+
+If you want gstack to inspect a local web app, start the app separately first (`npm run dev`, `bun dev`, etc.), then point gstack at the running URL such as `http://localhost:3000`.
+
+Minimal `codex exec` example:
+
+```bash
+codex exec -C /path/to/repo - <<'EOF'
+Read .codex/skills/gstack/qa/SKILL.md and follow it.
+Run a quick QA pass on http://localhost:3000.
+Do not ask questions. Write the report in the response only.
+EOF
+```
+
+### Step 4: Smoke test the browser
+
+Once your app is running, you can verify the browser works before involving higher-level skills:
+
+```bash
+B=.codex/skills/gstack/browse/dist/browse
+
+printf '%s\n' \
+'[["goto","http://localhost:3000"],["wait","--load"],["snapshot","-i"],["console","--errors"]]' \
+| "$B" chain
+```
+
+For a global install, use `B="${CODEX_HOME:-$HOME/.codex}/skills/gstack/browse/dist/browse"` instead.
 
 ### What gets installed
 
-- Skill files (Markdown prompts) in `~/.claude/skills/gstack/` (or `.claude/skills/gstack/` for project installs)
-- Symlinks at `~/.claude/skills/browse`, `~/.claude/skills/qa`, `~/.claude/skills/review`, etc. pointing into the gstack directory
+- Skill files (Markdown prompts) in `${CODEX_HOME:-$HOME/.codex}/skills/gstack/` (or `.codex/skills/gstack/` for project installs)
+- Symlinks at `${CODEX_HOME:-$HOME/.codex}/skills/browse`, `${CODEX_HOME:-$HOME/.codex}/skills/qa`, `${CODEX_HOME:-$HOME/.codex}/skills/review`, etc. pointing into the gstack directory
 - Browser binary at `browse/dist/browse` (~58MB, gitignored)
 - `node_modules/` (gitignored)
+- Browser/session state under `~/.gstack/`
 - `/retro` saves JSON snapshots to `.context/retros/` in your project for trend tracking
 
-Everything lives inside `.claude/`. Nothing touches your PATH or runs in the background.
+gstack writes inside `.codex/`, `${CODEX_HOME:-$HOME/.codex}`, `~/.gstack/`, and Playwright's normal browser cache. It does not install background services or modify your shell configuration for you.
 
 ---
 
@@ -591,31 +655,60 @@ It saves a JSON snapshot to `.context/retros/` so the next run can show trends. 
 
 ## Troubleshooting
 
-**Skill not showing up in Claude Code?**
-Run `cd ~/.claude/skills/gstack && ./setup` (or `cd .claude/skills/gstack && ./setup` for project installs). This rebuilds symlinks so Claude can discover the skills.
+**Skill not showing up in Codex?**
+Rerun setup, then restart Codex:
+
+```bash
+cd /path/to/your/gstack/checkout
+./setup-codex
+```
+
+For a vendored project copy:
+
+```bash
+cd /path/to/repo/.codex/skills/gstack
+./setup
+```
 
 **`/browse` fails or binary not found?**
-Run `cd ~/.claude/skills/gstack && bun install && bun run build`. This compiles the browser binary. Requires Bun v1.0+.
+Rebuild from the gstack install directory:
+
+```bash
+bun install
+bun run build
+```
 
 **Project copy is stale?**
-Re-copy from global: `for s in browse plan-ceo-review plan-eng-review review ship retro qa setup-browser-cookies; do rm -f .claude/skills/$s; done && rm -rf .claude/skills/gstack && cp -Rf ~/.claude/skills/gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup`
+Replace `.codex/skills/gstack` with a fresh copy from upstream, then run `cd .codex/skills/gstack && ./setup`.
 
 **`bun` not installed?**
 Install it: `curl -fsSL https://bun.sh/install | bash`
 
+**`bun` installed but command not found?**
+Add Bun to your shell path for the current session: `export PATH="$HOME/.bun/bin:$PATH"`
+
+**`codex exec` or E2E tests fail immediately?**
+Make sure Codex is installed, authenticated, and allowed to reach its backend over the network.
+
 ## Upgrading
 
-Paste this into Claude Code:
+If you installed gstack globally with `./setup-codex`, update the checkout you originally cloned and rerun setup:
 
-> Update gstack: run `cd ~/.claude/skills/gstack && git fetch origin && git reset --hard origin/main && ./setup`. If this project also has gstack at .claude/skills/gstack, update it too: run `for s in browse plan-ceo-review plan-eng-review review ship retro qa setup-browser-cookies; do rm -f .claude/skills/$s; done && rm -rf .claude/skills/gstack && cp -Rf ~/.claude/skills/gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup`
+```bash
+cd /path/to/your/gstack/checkout
+git pull --ff-only
+./setup-codex
+```
 
-The `setup` script rebuilds the browser binary and re-symlinks skills. It takes a few seconds.
+If you vendored gstack into a project, replace `.codex/skills/gstack` with a fresh upstream copy and rerun `./setup`.
+
+The setup scripts rebuild the browser binary when needed and refresh the skill symlinks. They take a few seconds.
 
 ## Uninstalling
 
-Paste this into Claude Code:
+Remove the global skill symlinks under `${CODEX_HOME:-$HOME/.codex}/skills/`, remove `${CODEX_HOME:-$HOME/.codex}/skills/gstack`, and delete the cloned checkout if you installed one just for gstack.
 
-> Uninstall gstack: remove the skill symlinks by running `for s in browse plan-ceo-review plan-eng-review review ship retro qa setup-browser-cookies; do rm -f ~/.claude/skills/$s; done` then run `rm -rf ~/.claude/skills/gstack` and remove the gstack section from CLAUDE.md. If this project also has gstack at .claude/skills/gstack, remove it by running `for s in browse plan-ceo-review plan-eng-review review ship retro qa setup-browser-cookies; do rm -f .claude/skills/$s; done && rm -rf .claude/skills/gstack` and remove the gstack section from the project CLAUDE.md too.
+For a vendored project copy, delete `.codex/skills/gstack/` and the project-local skill symlinks in `.codex/skills/`.
 
 ## Development
 
@@ -624,12 +717,13 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, testing, and dev mode. See [AR
 ### Testing
 
 ```bash
-bun test                     # free static tests (<5s)
-EVALS=1 bun run test:evals   # full E2E + LLM evals (~$4, ~20min)
-bun run eval:watch            # live dashboard during E2E runs
+bun test             # free tests (browse + snapshot + skill validation)
+bun run test:e2e     # Codex E2E only (~$3.85/run)
+bun run test:evals   # E2E + LLM evals (~$4/run)
+bun run eval:watch   # live dashboard during E2E/eval runs
 ```
 
-E2E tests stream real-time progress, write machine-readable diagnostics, and persist partial results that survive kills. See CONTRIBUTING.md for the full eval infrastructure.
+`test:e2e` and `test:evals` already set `EVALS=1` for you. E2E tests stream real-time progress, write machine-readable diagnostics, and persist partial results that survive kills. See CONTRIBUTING.md for the full eval infrastructure.
 
 ## License
 
